@@ -3,7 +3,7 @@ import pandas as pd
 import math
 import matplotlib.pyplot as plt
 import sys
-import collections
+from collections import Counter
 
 def main():
     # pbp2013 = pd.read_csv('pbp-2013.csv')
@@ -39,7 +39,7 @@ def main():
             game_ids.append(game_id)
             team_key = {team1:0,team2:1}
             ids_to_teams[game_id] = [oTeam,dTeam]
-            print(team_key.keys())
+            #print(team_key.keys())
             #print(index,game_id, gameCount)
             #getting every unique game in a season
         # if gameCount == 16:
@@ -52,17 +52,14 @@ def main():
         if 'NULLIFIED' in des: #If the play was nullfied, nothing matters because there was no play
             continue
 
-        # if game_id != 2015100500:
-        #     continue
-
         if 'SAFETY' in des and ('REVERSED' not in des or isGoodReversed(des,'SAFETY')): #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
             ##If safety truly occurred, defense team gets 2 points
             isSafety = 1
             season_scores[gameCount][team_key[dTeam]] += 2
-            print(index,dTeam,des)
+            #print(index,dTeam,des)
 
         if isNoPlay == 1: #Play didn't happen, ignore everything else
-            continue
+            continue 
 
         if (isInterception==1 and thisHappened(des,'INTERCEPTED',isNoPlay)) or ('PUNTS' in des and thisHappened(des,'PUNTS',isNoPlay)) or ('KICKS' in des and thisHappened(des,'KICKS',isNoPlay)): 
         #If we are punting or on an interception, the other team becomes the "offense" technically speaking
@@ -74,6 +71,23 @@ def main():
         if 'BLOCKED' in des and thisHappened(des,'BLOCKED',isNoPlay): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
             oTeam,dTeam = blockedRecoverer(des,oTeam,dTeam,down)
 
+        if isFumble == 1:
+            buzzword = 'FILLER'
+            if 'CHALLENGES' in des:
+                buzzword = 'CHALLENGES'
+            elif 'REVIEWED' in des:
+                buzzword = 'REVIEWED'
+            elif 'CHALLENGED' in des:
+                buzzword = 'CHALLENGED'
+            word_counts = Counter(des.split())
+            if buzzword != 'FILLER':
+                word_counts= Counter(des.split(buzzword)[0].split())
+            if word_counts.get('FUMBLES') > 1 and 'CHALLENGES' not in des and 'REVIEWED' not in des:
+                print(index,word_counts.get('FUMBLES'), des, isTurnoverFromFumble(isFumble,des,dTeam),thisHappened(des,'FUMBLES',isNoPlay))
+
+        if isTurnoverFromFumble(isFumble,des,dTeam):
+            print(des)
+
         if isTurnoverFromFumble(isFumble,des,dTeam) and thisHappened(des,'FUMBLES',isNoPlay): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
             #print(index,des,isTurnoverFromFumble(isFumble,des,dTeam))
             temp = oTeam #swap offense and defense
@@ -83,21 +97,21 @@ def main():
 
         if isTouchdown==1 and thisHappened(des,'TOUCHDOWN',isNoPlay): #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
-            print(index,oTeam,des)
+            #print(index,oTeam,des)
         if 'EXTRA POINT IS GOOD' in des and thisHappened(des,'EXTRA POINT IS GOOD',isNoPlay): #If XP truly occurred, offense team gets 1 point
             if 'PRATER' in des:
                 count+=1
             isExtraPoint = 1
             season_scores[gameCount][team_key[oTeam]] += 1
-            print(index,oTeam,des)
+            #print(index,oTeam,des)
         if 'FIELD GOAL IS GOOD' in des and thisHappened(des,'FIELD GOAL IS GOOD',isNoPlay): #If FG truly occurred, offense team gets 3 points
             isFieldGoal = 1
             season_scores[gameCount][team_key[oTeam]] += 3
-            print(index,oTeam,des)
+            #print(index,oTeam,des)
         if isTwoPointConversionSuccessful == 1 and thisHappened(des,'SUCCEEDS',isNoPlay): #If 2PC truly occurred, offense team gets 2 points
             is2PC = 1
             season_scores[gameCount][team_key[oTeam]] += 2
-            print(index,oTeam,des)
+            #print(index,oTeam,des)
 
         
 
@@ -161,7 +175,7 @@ def checkMissingGames(gameCount, pbp2014, game_ids):
     print('uniqueGames', uniqueGames)
     print(len(set(game_ids)), len(game_ids), uniqueGames)
     print(list(set(pbp2014['GameId'].unique())-set(game_ids))) #looking for missing game ids
-    print ([item for item, count in collections.Counter(game_ids).items() if count > 1]) #looking for duplicate game ids
+    print ([item for item, count in Counter(game_ids).items() if count > 1]) #looking for duplicate game ids
 
 '''isFumble accounts for fumbles recovered by the own team, this stat is more helpful to know'''
 def isTurnoverFromFumble(fum,des,dTeam): 
