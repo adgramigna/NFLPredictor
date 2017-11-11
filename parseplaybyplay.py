@@ -15,7 +15,7 @@ def main():
     #sorting to get a reasonable view
     pbp2014 = pbp2014.sort_values(['GameId', 'Quarter', 'Minute', 'Second', 'YardLine'], ascending = [True,True,False,False,False])
     pbp2014 = pbp2014.reset_index(drop=True)
-    pbp2014.to_csv('pbp2015_test.csv')
+    #pbp2014.to_csv('pbp2015_test.csv')
     gameCount = -1 #initally, how many games are played in a seasons
     game_ids = [] #collecting ids of each unique game
     season_scores = np.zeros((256,2))
@@ -27,6 +27,7 @@ def main():
         isTwoPointConversionSuccessful,rushDirection,isPenaltyAccepted,yardlineFixed,yardlineDirection,penTeam,isNoPlay,penType,penYards = getEssentialPlayByPlayFeatures(index,pbp2014)
         #setting up my initial variables of potiential useful features in our play by play data
 
+        must_loop=1
         if quarter == 1 and minute == 15 and second == 0 and playType == 'KICK OFF' and yardline0to100 == 35: #this must occur at the start of every game only once
             if gameCount != -1:
                 prevGameStats = computePrevGameStats(last_game_id,team1,team2,season_scores,team_key,gameCount)
@@ -52,7 +53,7 @@ def main():
         if 'NULLIFIED' in des: #If the play was nullfied, nothing matters because there was no play
             continue
 
-        if 'SAFETY' in des and ('REVERSED' not in des or isGoodReversed(des,'SAFETY')): #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
+        if 'SAFETY' in des and thisHappened(des,'SAFETY'): #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
             ##If safety truly occurred, defense team gets 2 points
             isSafety = 1
             season_scores[gameCount][team_key[dTeam]] += 2
@@ -67,32 +68,32 @@ def main():
             oTeam = dTeam
             dTeam = temp
 
-
         if 'BLOCKED' in des and thisHappened(des,'BLOCKED'): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
             oTeam,dTeam = blockedRecoverer(des,oTeam,dTeam,down)
 
-        if isFumble == 1:
-            buzzword = 'FILLER'
-            if 'CHALLENGES' in des:
-                buzzword = 'CHALLENGES'
-            elif 'REVIEWED' in des:
-                buzzword = 'REVIEWED'
-            elif 'CHALLENGED' in des:
-                buzzword = 'CHALLENGED'
-            word_counts = Counter(des.split())
-            if buzzword != 'FILLER':
-                word_counts= Counter(des.split(buzzword)[0].split())
-            if word_counts.get('FUMBLES') > 1 and 'CHALLENGES' not in des and 'REVIEWED' not in des:
-                pass#print(index,word_counts.get('FUMBLES'), des, isTurnoverFromFumble(isFumble,des,dTeam),thisHappened(des,'FUMBLES'))
+        # if isFumble == 1:
+        #     if 'REVERSED' not in des:
+        #         word_counts = Counter(des.split())
+        #     else:
+        #         word_counts= Counter(des.split('REVERSED')[1].split())
+        #     if word_counts.get('FUMBLES') > 1:
+        #         must_loop=word_counts.get('FUMBLES')
+                #pass#print(index,word_counts.get('FUMBLES'), des, isTurnoverFromFumble(isFumble,des,dTeam),thisHappened(des,'FUMBLES'))
 
-        if isTurnoverFromFumble(isFumble,des,dTeam) and 'REVERSED' in des and isGoodReversed(des, 'FUMBLES'):
-            print(index,des)
+        if isTurnoverFromFumble(isFumble,des,oTeam,dTeam) and 'REVERSED' in des and isGoodReversed(des, 'FUMBLES'):
+            pass#print(index,des)
 
-        if isTurnoverFromFumble(isFumble,des,dTeam) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
-            #print(index,des,isTurnoverFromFumble(isFumble,des,dTeam))
-            temp = oTeam #swap offense and defense
-            oTeam = dTeam
-            dTeam = temp
+        if isFumble ==1:
+            potentialFumbleTOs = numTurnoversFromFumble(des) #gets how many times there might have been a turnover from fumble
+            tdes = des
+            for i in range(totalFumbles):
+                if isTurnoverFromFumble(isFumble,tdes,oTeam,dTeam) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
+                    print(index,des)           
+                    temp = oTeam #swap offense and defense
+                    oTeam = dTeam
+                    dTeam = temp
+                if potentialFumbleTOs > 1:
+                    tdes = des[des.index('RECOVERED')+1:] #Now checking on the next time a fumble might be recovered
 
         if isTouchdown==1 and thisHappened(des,'TOUCHDOWN'): #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
@@ -175,7 +176,7 @@ def checkMissingGames(gameCount, pbp2014, game_ids):
     print ([item for item, count in Counter(game_ids).items() if count > 1]) #looking for duplicate game ids
 
 '''isFumble accounts for fumbles recovered by the own team, this stat is more helpful to know'''
-def isTurnoverFromFumble(fum,des,dTeam): 
+def isTurnoverFromFumble(fum,des,oTeam,dTeam): 
     if fum ==0:
         return False
     if 'REVERSED' in des:
@@ -184,6 +185,17 @@ def isTurnoverFromFumble(fum,des,dTeam):
         return True 
     tester = 'RECOVERED BY '+dTeam
     return tester in des
+
+'''Sees how many Potential Turnovers there are from a fumble to determine how many times to loopx isTurnoverFromFumble'''
+def numTurnoversFromFumble(des):
+    if 'REVERSED' not in des:
+        word_counts = Counter(des.replace('.',' ').replace(',',' ').split())
+    else:
+        word_counts = Counter(des.split('REVERSED')[1].replace('.',' ').replace(',',' ').split())
+    if word_counts.get('RECOVERED')==None:
+        return 0
+    else:
+        return word_counts.get('RECOVERED')
 
 '''Looks for the person who recovered the block'''
 def blockedRecoverer(des,oTeam,dTeam,down): 
