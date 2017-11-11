@@ -11,7 +11,7 @@ def main():
     #pbp2014 = pd.read_csv('pbp-2014.csv') #downloaded from NFLsavant.com/about.php
     pbp2014 = pd.read_csv('pbp-2015.csv')
     #print(pbp2014.loc[12]['GameId'])
-    # pbp2014 = pd.read_csv('pbp-2016.csv')
+    #pbp2014 = pd.read_csv('pbp-2016.csv')
     #sorting to get a reasonable view
     pbp2014 = pbp2014.sort_values(['GameId', 'Quarter', 'Minute', 'Second', 'YardLine'], ascending = [True,True,False,False,False])
     pbp2014 = pbp2014.reset_index(drop=True)
@@ -26,7 +26,7 @@ def main():
         game_id,game_date,quarter,minute,second,oTeam,dTeam,down,togo,yardline0to100,gotFirstDown,des,season,yardsGained,formation,playType,isRush,\
         isPass,isIncomplete,isTouchdown,passType,isSack,isChallenge,isChallengeReversed,isMeasurement,isInterception,isFumble,isPenalty,isTwoPointConversion,\
         isTwoPointConversionSuccessful,rushDirection,isPenaltyAccepted,yardlineFixed,yardlineDirection,penTeam,isNoPlay,penType,penYards = getEssentialPlayByPlayFeatures(index,pbp2014)
-        #setting up my initial variables of potiential useful features in our play by play data
+        #setting up my initial variables of potiential useful features in play by play data
 
         if quarter == 1 and minute == 15 and second == 0 and playType == 'KICK OFF' and yardline0to100 == 35: #this must occur at the start of every game only once
             if gameCount != -1:
@@ -48,15 +48,22 @@ def main():
             #print(team_key.keys())
             #print(index,game_id, gameCount)
             #getting every unique game in a season
+        
         # if gameCount == 16:
         #     break
-
 
         if type(des) != str: #If we don't have a description, nothing happen and skip this row
             continue
 
         if 'NULLIFIED' in des: #If the play was nullfied, nothing matters because there was no play
             continue
+
+        if index == 12528 and season == 2015: #fixing error with data, problem 2
+            isTouchdown = 0
+
+        # if game_id != 2015110106:
+        #     continue
+        # print(gameCount)
 
         if 'SAFETY' in des and thisHappened(des,'SAFETY'): #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
             ##If safety truly occurred, defense team gets 2 points
@@ -80,7 +87,7 @@ def main():
             potentialFumbleTOs = numTurnoversFromFumble(des) #gets how many times there might have been a turnover from fumble
             tdes = des #So I can check each time with the most recent revocery
             for i in range(potentialFumbleTOs):
-                if isTurnoverFromFumble(isFumble,tdes,oTeam,dTeam) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
+                if isTurnoverFromFumble(isFumble,tdes,oTeam,dTeam,season) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
                     #print(index,des)           
                     temp = oTeam #swap offense and defense
                     oTeam = dTeam
@@ -91,21 +98,22 @@ def main():
                         break #can't be any more potential turnovers from fumbles if no one recovers
                     tdes = tdes[des.index('RECOVERED')+1:] #Now checking on the next time a fumble might be recovered
 
+        # continue
         if isTouchdown==1 and thisHappened(des,'TOUCHDOWN'): #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
-            #print(index,oTeam,des)
+            # print(index,oTeam,des)
         if 'EXTRA POINT IS GOOD' in des and thisHappened(des,'EXTRA POINT IS GOOD'): #If XP truly occurred, offense team gets 1 point
             isExtraPoint = 1
             season_scores[gameCount][team_key[oTeam]] += 1
-            #print(index,oTeam,des)
+            # print(index,oTeam,des)
         if 'FIELD GOAL IS GOOD' in des and thisHappened(des,'FIELD GOAL IS GOOD'): #If FG truly occurred, offense team gets 3 points
             isFieldGoal = 1
             season_scores[gameCount][team_key[oTeam]] += 3
-            #print(index,oTeam,des)
+            # print(index,oTeam,des)
         if isTwoPointConversionSuccessful == 1 and thisHappened(des,'SUCCEEDS'): #If 2PC truly occurred, offense team gets 2 points
             is2PC = 1
             season_scores[gameCount][team_key[oTeam]] += 2
-            #print(index,oTeam,des)
+            # print(index,oTeam,des)
 
     
     fixProblems(game_id,season_scores)
@@ -173,7 +181,11 @@ def checkMissingGames(gameCount, pbp2014, game_ids):
     print ([item for item, count in Counter(game_ids).items() if count > 1]) #looking for duplicate game ids
 
 '''isFumble accounts for fumbles recovered by the own team, this stat is more helpful to know'''
-def isTurnoverFromFumble(fum,des,oTeam,dTeam): 
+def isTurnoverFromFumble(fum,des,oTeam,dTeam,season):
+    if dTeam == 'JAX' and season == 2015: #consistency error with .csv, problem 3
+         dTeam = 'JAC'
+    if dTeam == 'LA' and season == 2015: #consistency error with .csv, problem 4
+         dTeam = 'STL'
     if fum ==0:
         return False
     if 'REVERSED' in des:
@@ -229,20 +241,35 @@ def isGoodReversed(des, word):
     des = des.replace('.',' ').replace(',',' ').split('REVERSED')
     return word in des[1]
 
-
 '''The play did indeed occur and the result stood into the next play'''
 def thisHappened(des,word):
     return 'REVERSED' not in des or isGoodReversed(des,word)
 
+'''Fixing problems with missing data in the csv, hardcoded'''
 def fixProblems(game_id,season_scores):
     problem_count=0
     problem_count+=1
     season_scores[62][1] +=1
     print('Problem: '+str(problem_count)+ ' Fixed. New Score- DET: '+str(int(season_scores[62][1]))+' SEA: '+str(int(season_scores[62][0])))
+    problem_count+=1
+    print('Problem: '+str(problem_count)+ ' Fixed in code, removed isTouchdown from index 12528. New Score Correct in code.')
+    problem_count+=1
+    print('Problem: '+str(problem_count)+ ' Fixed in code, changed dTeam from JAX to JAC for 2015. New Score Correct in code.')
+    problem_count+=1
+    print('Problem: '+str(problem_count)+ ' Fixed in code, changed dTeam from LA to JAC for STL. New Score Correct in code.')
+    problem_count+=1
+    season_scores[112][0] +=1
+    print('Problem: '+str(problem_count)+ ' Fixed. New Score- NYG: '+str(int(season_scores[112][0]))+' NO: '+str(int(season_scores[112][1])))
+
             
 
 '''PROBLEMS
 1. M.PRATER one XP not accounted for in table DET vs SEA, score 13-9, should be 13-10. id: 2015100500
+2. J.FLACCO Given touchdown twice because of mismarked isTouchdown on index 12528. Score 33-36, should bd 33-30. id: 2015101105
+3. JAX Showing up as JAC for dTeam in 2015, changes to JAX in 2016
+4. LA Showing up as STL for dTeam in 2015, changes to LA in 2016
+5. J.BROWN one XP not accounted for in table NYG vs NO, score 48-52, should be 49-52. id: 2015110106
+CORRECT THROUGH WEEK 8
 '''
 
 if __name__ == '__main__':
