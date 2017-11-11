@@ -61,14 +61,14 @@ def main():
         if isNoPlay == 1: #Play didn't happen, ignore everything else
             continue 
 
-        if (isInterception==1 and thisHappened(des,'INTERCEPTED',isNoPlay)) or ('PUNTS' in des and thisHappened(des,'PUNTS',isNoPlay)) or ('KICKS' in des and thisHappened(des,'KICKS',isNoPlay)): 
+        if (isInterception==1 and thisHappened(des,'INTERCEPTED')) or ('PUNTS' in des and thisHappened(des,'PUNTS')) or ('KICKS' in des and thisHappened(des,'KICKS')): 
         #If we are punting or on an interception, the other team becomes the "offense" technically speaking
             temp = oTeam
             oTeam = dTeam
             dTeam = temp
 
 
-        if 'BLOCKED' in des and thisHappened(des,'BLOCKED',isNoPlay): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
+        if 'BLOCKED' in des and thisHappened(des,'BLOCKED'): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
             oTeam,dTeam = blockedRecoverer(des,oTeam,dTeam,down)
 
         if isFumble == 1:
@@ -83,38 +83,35 @@ def main():
             if buzzword != 'FILLER':
                 word_counts= Counter(des.split(buzzword)[0].split())
             if word_counts.get('FUMBLES') > 1 and 'CHALLENGES' not in des and 'REVIEWED' not in des:
-                print(index,word_counts.get('FUMBLES'), des, isTurnoverFromFumble(isFumble,des,dTeam),thisHappened(des,'FUMBLES',isNoPlay))
+                pass#print(index,word_counts.get('FUMBLES'), des, isTurnoverFromFumble(isFumble,des,dTeam),thisHappened(des,'FUMBLES'))
 
-        if isTurnoverFromFumble(isFumble,des,dTeam):
-            print(des)
+        if isTurnoverFromFumble(isFumble,des,dTeam) and 'REVERSED' in des and isGoodReversed(des, 'FUMBLES'):
+            print(index,des)
 
-        if isTurnoverFromFumble(isFumble,des,dTeam) and thisHappened(des,'FUMBLES',isNoPlay): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
+        if isTurnoverFromFumble(isFumble,des,dTeam) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
             #print(index,des,isTurnoverFromFumble(isFumble,des,dTeam))
             temp = oTeam #swap offense and defense
             oTeam = dTeam
             dTeam = temp
-    
 
-        if isTouchdown==1 and thisHappened(des,'TOUCHDOWN',isNoPlay): #If touchdown truly occurred, offense team gets 6 points
+        if isTouchdown==1 and thisHappened(des,'TOUCHDOWN'): #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
             #print(index,oTeam,des)
-        if 'EXTRA POINT IS GOOD' in des and thisHappened(des,'EXTRA POINT IS GOOD',isNoPlay): #If XP truly occurred, offense team gets 1 point
-            if 'PRATER' in des:
-                count+=1
+        if 'EXTRA POINT IS GOOD' in des and thisHappened(des,'EXTRA POINT IS GOOD'): #If XP truly occurred, offense team gets 1 point
             isExtraPoint = 1
             season_scores[gameCount][team_key[oTeam]] += 1
             #print(index,oTeam,des)
-        if 'FIELD GOAL IS GOOD' in des and thisHappened(des,'FIELD GOAL IS GOOD',isNoPlay): #If FG truly occurred, offense team gets 3 points
+        if 'FIELD GOAL IS GOOD' in des and thisHappened(des,'FIELD GOAL IS GOOD'): #If FG truly occurred, offense team gets 3 points
             isFieldGoal = 1
             season_scores[gameCount][team_key[oTeam]] += 3
             #print(index,oTeam,des)
-        if isTwoPointConversionSuccessful == 1 and thisHappened(des,'SUCCEEDS',isNoPlay): #If 2PC truly occurred, offense team gets 2 points
+        if isTwoPointConversionSuccessful == 1 and thisHappened(des,'SUCCEEDS'): #If 2PC truly occurred, offense team gets 2 points
             is2PC = 1
             season_scores[gameCount][team_key[oTeam]] += 2
             #print(index,oTeam,des)
 
         
-
+    fixProblems()
     print(season_scores)
     print(ids_to_teams)
     print('xp', count)
@@ -181,6 +178,8 @@ def checkMissingGames(gameCount, pbp2014, game_ids):
 def isTurnoverFromFumble(fum,des,dTeam): 
     if fum ==0:
         return False
+    if 'REVERSED' in des:
+        des = des.replace('.',' ').replace(',',' ').split('REVERSED')[1]
     if 'TOUCHBACK' in des:
         return True 
     tester = 'RECOVERED BY '+dTeam
@@ -218,12 +217,17 @@ def computePrevGameStats(game_id,team1,team2,season_scores,team_key,gameCount):
 
 '''If REVERSED comes after the word in question, then the play never actually happened because the call was reversed, but otherwise the call was reversed into the play, which means it did happen'''
 def isGoodReversed(des, word):
-    return des.replace('.',' ').replace(',',' ').split().index(word) > des.replace('.',' ').replace(',',' ').split().index('REVERSED')
+    des = des.replace('.',' ').replace(',',' ').split('REVERSED')
+    return word in des[1]
+    # return des.replace('.',' ').replace(',',' ').split().index(word) > des.replace('.',' ').replace(',',' ').split().index('REVERSED')
 
 
 '''The play did indeed occur and the result stood into the next play'''
-def thisHappened(des,word,isNoPlay):
-    return isNoPlay==0 and ('REVERSED' not in des or isGoodReversed(des,word))
+def thisHappened(des,word):
+    return 'REVERSED' not in des or isGoodReversed(des,word)
+
+def fixProblems():
+    pass
 
 '''PROBLEMS
 1. M.PRATER one XP not accounted for in table DET vs SEA, score 13-9, should be 13-10. id: 2015100500
