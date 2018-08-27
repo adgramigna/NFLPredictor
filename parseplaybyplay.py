@@ -16,22 +16,39 @@ def main():
 
     # pbp.to_csv('pbp2015_test.csv')
 
+    print(pbp['PlayType'].unique())
+
     gameCount = -1 #initally, how many games are played in a season
     game_ids = [] #collecting ids of each unique game
     season_scores = np.zeros((256,2))
-    team_records = np.zeros((256,2))
-    ids_to_teams = {}
-    ids_to_counts = {}
+    team_records = np.zeros((32,2))
+    game_stats = np.zeros((256,40))
+    teams = {'ARI': 0, 'ATL': 1, 'BAL': 2, 'BUF': 3, 'CAR': 4, 'CHI': 5, 'CIN': 6, 'CLE': 7, 'DAL': 8, 'DEN': 9,\
+    'DET': 10, 'GB': 11, 'HOU': 12, 'IND': 13, 'JAX': 14, 'JAC': 14, 'KC': 15, 'LA': 16, 'LAR': 16, 'STL': 16, \
+    'MIA': 17, 'MIN': 18, 'NE': 19, 'NO': 20, 'NYJ': 21, 'NYG': 22, 'OAK': 23,'PHI': 24, 'PIT': 25, 'SD': 26, \
+    'LAC': 26, 'SEA': 27, 'SF': 28, 'TB': 29, 'TEN': 30, 'WAS': 31} 
     for index in range(pbp.shape[0]):
         game_id,game_date,quarter,minute,second,oTeam,dTeam,down,togo,yardline0to100,gotFirstDown,des,season,yardsGained,formation,playType,isRush,\
         isPass,isIncomplete,isTouchdown,passType,isSack,isChallenge,isChallengeReversed,isMeasurement,isInterception,isFumble,isPenalty,isTwoPointConversion,\
         isTwoPointConversionSuccessful,rushDirection,isPenaltyAccepted,yardlineFixed,yardlineDirection,penTeam,isNoPlay,penType,penYards = getEssentialPlayByPlayFeatures(index,pbp)
         #setting up my initial variables of potiential useful features in play by play data
 
+       
+        #Fixing Error with descriptions
+        if oTeam == 'JAX' and season == 2015: 
+            oTeam = 'JAC'
+        if dTeam == 'JAX' and season == 2015:
+            dTeam = 'JAC'
+        if oTeam == 'LA' and season == 2015:
+            oTeam = 'STL'
+        if dTeam == 'LA' and season == 2015:
+            dTeam = 'STL'
+
         if quarter == 1 and minute == 15 and second == 0 and playType == 'KICK OFF' and yardline0to100 == 35: #this must occur at the start of every game only once
             if gameCount != -1:
                 prevGameStats = computePrevGameStats(last_game_id,team1,team2,season_scores,team_key,gameCount)
                 print(prevGameStats)
+                updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records, teams)
             last_game_id = game_id
             last_game_date = game_date
             gameCount = gameCount+1
@@ -39,8 +56,6 @@ def main():
             team2 = dTeam
             game_ids.append(game_id)
             team_key = {team1:0,team2:1}
-            ids_to_teams[game_id] = [oTeam,dTeam]
-            ids_to_counts[game_id] = gameCount
             # if game_id == 2015100500:
             #     print('gc', gameCount, oTeam,dTeam,season_scores[62][team_key[dTeam]])
             '''If there are more problems modify above'''
@@ -52,8 +67,16 @@ def main():
         # if gameCount == 16:
         #     break
 
+
         if type(des) != str: #If we don't have a description, nothing happen and skip this row
             continue
+
+        isTOFromFumble = isTurnoverFromFumble(isFumble,des,oTeam,dTeam,season)
+
+        if 'REVERSED' in des:
+            des = des.split('REVERSED')[1]
+            print(index, des)
+        continue
 
         if 'NULLIFIED' in des: #If the play was nullified, nothing matters because there was no play
             continue
@@ -63,6 +86,27 @@ def main():
 
         if index == 36932 and season == 2015: #fixing error with data, problem 7
             isTouchdown = 0
+
+        if index == 43494 and season == 2015: #fixing error with data, problems 8-13
+            playType = 'RUSH'
+            yardsGained = -3
+
+        if index == 38361 and season == 2015:
+            playType = 'RUSH'
+            yardsGained = 0
+
+        if index == 32882 and season == 2015:
+            playType = 'RUSH'
+            yardsGained = -8
+
+        if index == 28345 and season == 2015:
+            playType = 'RUSH'
+            yardsGained = -5
+
+        if index == 21522 and season == 2015:
+            playType = 'RUSH'
+            yardsGained = -1
+
 
         # if game_id != 2016010307:
         #     continue
@@ -75,7 +119,20 @@ def main():
             # print(index,dTeam,des)
 
         if isNoPlay == 1: #Play didn't happen, ignore everything else
-            continue 
+            continue
+
+        if playType == 'FUMBLES' and isTOFromFumble == False and thisHappened(des,'FUMBLES'):
+            if isTouchdown and thisHappened(des,'TOUCHDOWN'):
+                yardsGained = 100 - yardline0to100
+            else:
+                yardsGained = pbp.get_value(index+1, 'YardLine')-yardline0to100
+        if playType == 'FUMBLES' and isTOFromFumble and thisHappened(des, 'FUMBLES'):
+            tdes = des.split('AT ')
+            howFar = tdes[1][:tdes[1].index(',')].split()
+            if(howFar[0] == oTeam):
+                pass
+            print(index, yardlineDirection, yardlineFixed, howFar, des, yardsGained, bool(isTOFromFumble))
+        continue 
 
         if (isInterception==1 and thisHappened(des,'INTERCEPTED')) or ('PUNTS' in des and thisHappened(des,'PUNTS')) or ('KICKS' in des and thisHappened(des,'KICKS')): 
         #If we are punting or on an interception, the other team becomes the "offense" technically speaking
@@ -86,11 +143,11 @@ def main():
         if 'BLOCKED' in des and thisHappened(des,'BLOCKED'): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
             oTeam,dTeam = blockedRecoverer(des,oTeam,dTeam,down)
 
-        if isFumble ==1:
+        if isFumble == 1:
             potentialFumbleTOs = numTurnoversFromFumble(des) #gets how many times there might have been a turnover from fumble
             tdes = des #So I can check each time with the most recent revocery
             for i in range(potentialFumbleTOs):
-                if isTurnoverFromFumble(isFumble,tdes,oTeam,dTeam,season) and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
+                if isTOFromFumble and thisHappened(des,'FUMBLES'): #if there's a turnover from a fumble, needs to come after INT for edge case where intercepting team fumbles.
                     #print(index,des)           
                     temp = oTeam #swap offense and defense
                     oTeam = dTeam
@@ -134,6 +191,11 @@ def main():
 
     checkMissingGames(gameCount, pbp, game_ids)
 
+    for key in teams:
+        wins = team_records[teams[key]][0]
+        losses = team_records[teams[key]][1]
+        print(key, '%i-%i' % (wins,losses))
+
 
 '''Function that gets the vaue of each feature at a specific index. All features below are neccessary to compute
 some sort of feature that I will be using in my training data.'''
@@ -145,37 +207,37 @@ def getEssentialPlayByPlayFeatures(index, df):
     second = df.get_value(index, 'Second')
     oTeam = df.get_value(index, 'OffenseTeam')
     dTeam = df.get_value(index, 'DefenseTeam')
-    down = df.get_value(index, 'Down')
+    down = df.get_value(index, 'Down') #3rd down conversion rate
     togo = df.get_value(index, 'ToGo')
     yardline0to100 = df.get_value(index, 'YardLine')
-    gotFirstDown = df.get_value(index, 'SeriesFirstDown')
+    gotFirstDown = df.get_value(index, 'SeriesFirstDown') #first downs
     des = df.get_value(index, 'Description')
     season = df.get_value(index, 'SeasonYear')
-    yardsGained = df.get_value(index, 'Yards')
+    yardsGained = df.get_value(index, 'Yards') #total yards, pass yards, rush yards
     formation = df.get_value(index, 'Formation')
     playType = df.get_value(index, 'PlayType')
-    isRush = df.get_value(index, 'IsRush')
-    isPass = df.get_value(index, 'IsPass')
-    isIncomplete = df.get_value(index, 'IsIncomplete')
+    isRush = df.get_value(index, 'IsRush') #YPC
+    isPass = df.get_value(index, 'IsPass') #YPA
+    isIncomplete = df.get_value(index, 'IsIncomplete') #Completion rate
     isTouchdown = df.get_value(index, 'IsTouchdown')
     passType = df.get_value(index, 'PassType')
-    isSack = df.get_value(index, 'IsSack')
-    isChallenge = df.get_value(index, 'IsChallenge')
+    isSack = df.get_value(index, 'IsSack') #sacks
+    isChallenge = df.get_value(index, 'IsChallenge') #challenges, won challenges, rate
     isChallengeReversed = df.get_value(index, 'IsChallengeReversed')
     isMeasurement = df.get_value(index, 'IsMeasurement')
-    isInterception = df.get_value(index, 'IsInterception')
+    isInterception = df.get_value(index, 'IsInterception') #turnover margin, fumbles, ints,
     isFumble = df.get_value(index, 'IsFumble')
-    isPenalty = df.get_value(index, 'IsPenalty')
+    isPenalty = df.get_value(index, 'IsPenalty') #penalties
     isTwoPointConversion = df.get_value(index, 'IsTwoPointConversion')
     isTwoPointConversionSuccessful = df.get_value(index, 'IsTwoPointConversionSuccessful')
     rushDirection = df.get_value(index, 'RushDirection')
-    isPenaltyAccepted = df.get_value(index, 'IsPenaltyAccepted')
+    isPenaltyAccepted = df.get_value(index, 'IsPenaltyAccepted') 
     yardlineFixed = df.get_value(index, 'YardLineFixed')
     yardlineDirection = df.get_value(index, 'YardLineDirection')
     penTeam = df.get_value(index, 'PenaltyTeam')
     isNoPlay = df.get_value(index, 'IsNoPlay')
     penType = df.get_value(index, 'PenaltyType')
-    penYards = df.get_value(index, 'PenaltyYards')
+    penYards = df.get_value(index, 'PenaltyYards') #penalty yards
 
     return game_id,game_date,quarter,minute,second,oTeam,dTeam,down,togo,yardline0to100,gotFirstDown,des,season,yardsGained,\
     formation,playType,isRush,isPass,isIncomplete,isTouchdown,passType,isSack,isChallenge,isChallengeReversed,isMeasurement,\
@@ -213,7 +275,7 @@ def numTurnoversFromFumble(des):
         word_counts = Counter(des.replace('.',' ').replace(',',' ').split())
     else:
         word_counts = Counter(des.split('REVERSED')[1].replace('.',' ').replace(',',' ').split())
-    print(word_counts)
+    # print(word_counts)
     if 'TOUCHBACK' in des:
         turnovers+=1
     if word_counts.get('RECOVERED')!=None:
@@ -246,6 +308,16 @@ def computePrevGameStats(game_id,team1,team2,season_scores,team_key,gameCount):
     team1Win = int(team1Score > team2Score)
     team2Win = int(team2Score > team1Score)
     return [game_id,team1,team2,team1Score,team2Score,team1Win,team2Win]
+
+def updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records,teams):
+    team1Score = int(season_scores[gameCount][team_key[team1]])
+    team2Score = int(season_scores[gameCount][team_key[team2]])
+    if team1Score > team2Score:
+        team_records[teams[team1]][0] += 1
+        team_records[teams[team2]][1] += 1
+    else:
+        team_records[teams[team1]][1] += 1
+        team_records[teams[team2]][0] += 1
 
 '''If REVERSED comes after the word in question, then the play never actually happened because the call was reversed, but otherwise the call was reversed into the play, which means it did happen'''
 def isGoodReversed(des, word):
@@ -287,6 +359,7 @@ def fixProblems(game_id,season_scores):
 5. J.BROWN one XP not accounted for in table NYG vs NO, score 48-52, should be 49-52. id: 2015110106
 6. J. AJAYI 2PC not counted for MIA vs BAL, score 13-13, should be 13-15 Dolphins. id: 2015120602
 7. SF Given touchdown twice because of mismarked isTouchdown on index 36932. Score 16-24, should be 10-24. id: 2015121310
+8-12. RUSH plays mislabeled as FUMBLES (i.e. Aborted snap) indicies: 43494, 38361, 32882, 28345, 21522 
 '''
 
 if __name__ == '__main__':
