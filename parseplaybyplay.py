@@ -71,15 +71,20 @@ def main():
         if type(des) != str: #If we don't have a description, nothing happen and skip this row
             continue
 
-        isTOFromFumble = isTurnoverFromFumble(isFumble,des,oTeam,dTeam,season)
+        if 'NULLIFIED' in des: #If the play was nullified, nothing matters because there was no play
+            continue
 
         if 'REVERSED' in des:
             des = des.split('REVERSED')[1]
+            if 'TOUCHDOWN' not in des:
+                isTouchdown = 0
+            if 'FUMBLES' not in des:
+                isFumble = 0
+            if 'INTERCEPTED' not in des:
+                isInterception = 0
             print(index, des)
-        continue
 
-        if 'NULLIFIED' in des: #If the play was nullified, nothing matters because there was no play
-            continue
+        isTOFromFumble = isTurnoverFromFumble(isFumble,des,oTeam,dTeam,season)
 
         if index == 12528 and season == 2015: #fixing error with data, problem 2
             isTouchdown = 0
@@ -112,7 +117,7 @@ def main():
         #     continue
         # print(gameCount)
 
-        if 'SAFETY' in des and 'FOLLOWING THE SAFETY' not in des and  thisHappened(des,'SAFETY'): #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
+        if 'SAFETY' in des and 'FOLLOWING THE SAFETY' not in des: #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
             ##If safety truly occurred, defense team gets 2 points
             isSafety = 1
             season_scores[gameCount][team_key[dTeam]] += 2
@@ -121,26 +126,26 @@ def main():
         if isNoPlay == 1: #Play didn't happen, ignore everything else
             continue
 
-        if playType == 'FUMBLES' and isTOFromFumble == False and thisHappened(des,'FUMBLES'):
-            if isTouchdown and thisHappened(des,'TOUCHDOWN'):
+        if playType == 'FUMBLES' and isTOFromFumble == False and 'FUMBLES' in des:
+            if isTouchdown == 1:
                 yardsGained = 100 - yardline0to100
             else:
                 yardsGained = pbp.get_value(index+1, 'YardLine')-yardline0to100
-        if playType == 'FUMBLES' and isTOFromFumble and thisHappened(des, 'FUMBLES'):
+        if playType == 'FUMBLES' and isTOFromFumble and 'FUMBLES' in des:
             tdes = des.split('AT ')
             howFar = tdes[1][:tdes[1].index(',')].split()
             if(howFar[0] == oTeam):
                 pass
-            print(index, yardlineDirection, yardlineFixed, howFar, des, yardsGained, bool(isTOFromFumble))
-        continue 
+            # print(index, yardlineDirection, yardlineFixed, howFar, des, yardsGained, bool(isTOFromFumble))
+        # continue 
 
-        if (isInterception==1 and thisHappened(des,'INTERCEPTED')) or ('PUNTS' in des and thisHappened(des,'PUNTS')) or ('KICKS' in des and thisHappened(des,'KICKS')): 
+        if isInterception==1 or 'PUNTS' in des or 'KICKS' in des: 
         #If we are punting or on an interception, the other team becomes the "offense" technically speaking
             temp = oTeam
             oTeam = dTeam
             dTeam = temp
 
-        if 'BLOCKED' in des and thisHappened(des,'BLOCKED'): #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
+        if 'BLOCKED' in des: #Blocked kick or punt, find out who recovered the block and adjust teams accordingly
             oTeam,dTeam = blockedRecoverer(des,oTeam,dTeam,down)
 
         if isFumble == 1:
@@ -159,22 +164,22 @@ def main():
                     tdes = tdes[des.index('RECOVERED')+1:] #Now checking on the next time a fumble might be recovered
 
         # continue
-        if isTouchdown==1 and thisHappened(des,'TOUCHDOWN'): #If touchdown truly occurred, offense team gets 6 points
+        if isTouchdown==1: #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
             # print(index,oTeam,des)
-        if 'EXTRA POINT IS GOOD' in des and thisHappened(des,'EXTRA POINT IS GOOD'): #If XP truly occurred, offense team gets 1 point
+        if 'EXTRA POINT IS GOOD' in des: #If XP truly occurred, offense team gets 1 point
             isExtraPoint = 1
             season_scores[gameCount][team_key[oTeam]] += 1
             # print(index,oTeam,des)
-        if 'FIELD GOAL IS GOOD' in des and thisHappened(des,'FIELD GOAL IS GOOD'): #If FG truly occurred, offense team gets 3 points
+        if 'FIELD GOAL IS GOOD' in des: #If FG truly occurred, offense team gets 3 points
             isFieldGoal = 1
             season_scores[gameCount][team_key[oTeam]] += 3
             # print(index,oTeam,des)
-        if isTwoPointConversionSuccessful == 1 and thisHappened(des,'SUCCEEDS'): #If 2PC truly occurred, offense team gets 2 points
+        if isTwoPointConversionSuccessful == 1: #If 2PC truly occurred, offense team gets 2 points
             is2PC = 1
             season_scores[gameCount][team_key[oTeam]] += 2
             # print(index,oTeam,des)
-        if 'DEFENSIVE TWO-POINT ATTEMPT' in des and thisHappened(des, 'DEFENSIVE TWO-POINT ATTEMPT') and 'SUCCEEDS' in des and thisHappened(des, 'SUCCEEDS'):
+        if 'DEFENSIVE TWO-POINT ATTEMPT' in des and 'SUCCEEDS' in des:
             isDef2PC = 1
             season_scores[gameCount][team_key[dTeam]] += 2
             # print(index,dTeam,des)
@@ -184,6 +189,7 @@ def main():
 
     prevGameStats = computePrevGameStats(last_game_id,team1,team2,season_scores,team_key,gameCount)
     print(prevGameStats)
+    updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records, teams)
     fixProblems(game_id,season_scores)
     # print(season_scores)
     # print(ids_to_teams)
@@ -319,14 +325,14 @@ def updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records,
         team_records[teams[team1]][1] += 1
         team_records[teams[team2]][0] += 1
 
-'''If REVERSED comes after the word in question, then the play never actually happened because the call was reversed, but otherwise the call was reversed into the play, which means it did happen'''
-def isGoodReversed(des, word):
-    des = des.replace('.',' ').replace(',',' ').split('REVERSED')
-    return word in des[1]
+# '''If REVERSED comes after the word in question, then the play never actually happened because the call was reversed, but otherwise the call was reversed into the play, which means it did happen'''
+# def isGoodReversed(des, word):
+#     des = des.replace('.',' ').replace(',',' ').split('REVERSED')
+#     return word in des[1]
 
-'''The play did indeed occur and the result stood into the next play'''
-def thisHappened(des,word):
-    return 'REVERSED' not in des or isGoodReversed(des,word)
+# '''The play did indeed occur and the result stood into the next play'''
+# def thisHappened(des,word):
+#     return 'REVERSED' not in des or isGoodReversed(des,word)
 
 '''Fixing problems with missing data in the csv, hardcoded'''
 def fixProblems(game_id,season_scores):
