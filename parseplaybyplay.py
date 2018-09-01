@@ -7,18 +7,19 @@ from collections import Counter
 
 def main():
     #pbp = pd.read_csv('pbp-2014.csv')
-    pbp = pd.read_csv('pbp-2015.csv')  #downloaded from NFLsavant.com/about.php
-    #pbp = pd.read_csv('pbp-2016.csv')
+    # pbp = pd.read_csv('pbp-2015.csv')  #downloaded from NFLsavant.com/about.php
+    pbp = pd.read_csv('pbp-2016.csv')
     
     #sorting to get a reasonable view
-    pbp = pbp.sort_values(['GameId', 'Quarter', 'Minute', 'Second', 'YardLine'], ascending = [True,True,False,False,False])
+    pbp = pbp.sort_values(['GameId', 'Quarter', 'Minute', 'Second', 'Down', 'YardLine'], ascending = [True,True,False,False,True,False])
     pbp = pbp.reset_index(drop=True)
+    
 
     # pbp.to_csv('pbp2015_test.csv')
 
-    print(pbp['PlayType'].unique())
+    # sys.exit()
 
-    count = 1
+   
     gameCount = -1 #initally, how many games are played in a season
     game_ids = [] #collecting ids of each unique game
     season_scores = np.zeros((256,2))
@@ -54,6 +55,8 @@ def main():
     'DET': 10, 'GB': 11, 'HOU': 12, 'IND': 13, 'JAX': 14, 'JAC': 14, 'KC': 15, 'LA': 16, 'LAR': 16, 'STL': 16, \
     'MIA': 17, 'MIN': 18, 'NE': 19, 'NO': 20, 'NYJ': 21, 'NYG': 22, 'OAK': 23,'PHI': 24, 'PIT': 25, 'SD': 26, \
     'LAC': 26, 'SEA': 27, 'SF': 28, 'TB': 29, 'TEN': 30, 'WAS': 31} 
+
+
     for index in range(pbp.shape[0]):
         game_id,game_date,quarter,minute,second,oTeam,dTeam,down,yardsToGo,yardline0to100,gotFirstDown,des,season,yardsGained,formation,playType,isRush,\
         isPass,isIncomplete,isTouchdown,passType,isSack,isChallenge,isChallengeReversed,isMeasurement,isInterception,isFumble,isPenalty,isTwoPointConversion,\
@@ -61,7 +64,10 @@ def main():
         #setting up my initial variables of potiential useful features in play by play data
 
        
-        #Fixing Error with descriptions, problems 3 and 4
+        # Fixing Error with descriptions, problems 3 and 4
+        # if season == 2016:
+        #     print(index,des,playType)
+
         if oTeam == 'JAX' and season == 2015: 
             oTeam = 'JAC'
         if dTeam == 'JAX' and season == 2015:
@@ -106,66 +112,65 @@ def main():
         # if gameCount == 16:
         #     break
 
-        # if playType == 'EXCEPTION':
-        #     print(index,des)
-        if index == 24229 and season == 2015:
-            playType = 'FUMBLES'
-
         if index == 44732 and season == 2015: #Description said pass so they though it was a pass
             playType = 'EXTRA POINT'
+            print(index, des)
 
         if index == 12528 and season == 2015: #fixing error with data, problem 2
             isTouchdown = 0
+            print(index, des)
 
         if index == 36932 and season == 2015: #fixing error with data, problem 7
             isTouchdown = 0
+            print(index, des)
 
         if index == 22472 and season == 2015: #Officals Huddled but did not call a penalty, dumb description
             isPenaltyAccepted = 0
             isPenalty = 0 
+            print(index, des)
 
         if index == 32857 and season == 2015: #Kickoff after a penalty, this play is not a penalty
             isPenaltyAccepted = 0
             isPenalty = 0
+            print(index, des)
             continue #Another error 'PENALTY ON' in des, decided to just skip
+
 
         if index == 39519 and season == 2015: #Penalty on previous play
             isPenaltyAccepted = 0
             isPenalty = 0
+            print(index, des)
             continue #Another error 'PENALTY ON' in des, decided to just skip
 
         if index == 40437 and season == 2015: #Flag Thrown no penalty
             isPenaltyAccepted = 0
             isPenalty = 0
+            print(index, des)
 
-        if index == 27450 and season == 2015: #Description was bad, so play is hard coded, aborted play 1 rush and 1 fum for R. FITZPATRICK
-            game_stats[gameCount][team_key[oTeam]] += 1
+        if index == 2320 and season == 2016: #SAFETY nullified, but it wasn't really.
+            des = des.split('NULLIFIED')[1]
+
+        if index == 6166 and season == 2016: #Attempted TO messing up sack yards
+            des = des.split('ATTEMPTED')[0]
+            print(index, des)
+
+        if index == 11828 and season == 2016: #Kessler 'pass' backwards out of back of endzone safety
+            playType = 'FUMBLES'
+            print(index,des)
+
+        if index == 14938 and season == 2016:
+            playType = 'EXCEPTION'
+            print(index, des)
+
+        if index == 19926 and season == 2016: #Enforced from messsing up description 1 penalty 6 yards
+            game_stats[gameCount][36+team_key['BUF']] += 1
+            game_stats[gameCount][38+team_key['BUF']] += 6
+            print(index, des)
             continue
 
-        if index == 2310 and season == 2015: #Same, 1 rush and 3 yards for J. RANDLE
-            game_stats[gameCount][team_key[oTeam]] += 1
-            game_stats[gameCount][2+team_key[oTeam]]+= 3
-            # print(down, yardsToGo)
-            continue
+        if index == 43281 and season == 2016: #Made as exception, but it isn't
+            playType = 'TWO-POINT CONVERSION'
 
-        if index == 17455 and season == 2015: #Same, 1 rush and -1 yards for T. Brady
-            game_stats[gameCount][team_key[oTeam]] += 1
-            game_stats[gameCount][2+team_key[oTeam]]+= -1
-            # print(down, yardsToGo)
-            continue
-
-        if index == 33389 and season == 2015: #Same T. Bridgewater sacked for 8 yard loss.
-                game_stats[gameCount][18+team_key[oTeam]] += 1
-                game_stats[gameCount][20+team_key[oTeam]] += -8
-                game_stats[gameCount][24+team_key[oTeam]] += 1 #3rd down
-                # print(down, yardsToGo)
-                continue
-
-        if index == 29978 and season == 2015: #Same M. RYAN sacked for 8 yard loss. TURVOVER on Downs
-                game_stats[gameCount][18+team_key[oTeam]] += 1
-                game_stats[gameCount][20+team_key[oTeam]] += -8
-                game_stats[gameCount][28+team_key[oTeam]] += 1
-                continue
 
         if type(des) != str: #If we don't have a description, nothing happen and skip this row
             continue
@@ -191,7 +196,7 @@ def main():
         if 'MUFFS' in des:
             isFumble = 1
 
-        if (playType == 'FUMBLES' and isFumble and 'ABORTED' not in des) or (playType == 'EXCEPTION' and ' FOR ' in des):
+        if (playType == 'FUMBLES' and isFumble and 'ABORTED' not in des) or (playType == 'EXCEPTION' and ' FOR ' in des and ('YARDS' in des or 'NO GAIN' in des)):
             playType = 'RUSH'
 
         if 'DELAY OF GAME' in des:
@@ -206,8 +211,8 @@ def main():
         # if playType == 'PUNT' and 'PUNTS' not in des and 'BLOCKED' not in des and 'KICKS' not in des:
         #     playType = 'RUSH'
 
-        if gameCount == 155 and isPotentialRush(playType) and oTeam == 'STL':
-            print(index, yardlineDirection, yardlineFixed, yardsGained, des, playType, isNoPlay, game_stats[gameCount][team_key['STL']],game_stats[gameCount][2+team_key['STL']],game_stats[gameCount][14+team_key['STL']])
+        # if gameCount == 155 and isPotentialRush(playType) and oTeam == 'STL':
+        #     print(index, yardlineDirection, yardlineFixed, yardsGained, des, playType, isNoPlay, game_stats[gameCount][team_key['STL']],game_stats[gameCount][2+team_key['STL']],game_stats[gameCount][14+team_key['STL']])
 
         isTOFromFumble = isTurnoverFromFumble(isFumble,des,oTeam,dTeam)   
 
@@ -226,7 +231,7 @@ def main():
 
         # print(gameCount)
 
-        if 'SAFETY' in des and 'FOLLOWING THE SAFETY' not in des: #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
+        if 'SAFETY' in des and 'FOLLOWING THE SAFETY' not in des and isNoPlay: #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
             ##If safety truly occurred, defense team gets 2 points
             isSafety = 1
             season_scores[gameCount][team_key[dTeam]] += 2
@@ -247,7 +252,7 @@ def main():
                 game_stats[gameCount][36+team_key[penTeam]] += 1
                 game_stats[gameCount][38+team_key[penTeam]] += penYards
 
-        # if penType == 'ILLEGAL BLOCK ABOVE THE WAIST' and penTeam == oTeam:
+        # if 'ENFORCED' in des:
         #     print(penTeam, penYards, penType, index, des, down)
 
         if isNoPlay == 1: #Play didn't happen, ignore everything else
@@ -262,15 +267,13 @@ def main():
             game_stats[gameCount][team_key[oTeam]] += 1
 
         if playType == 'FUMBLES' and not isTOFromFumble and 'AND RECOVERS' in des: #meaning the yardage will be 0 unless same player recovers and gains yardage
-            if 'OUT OF BOUNDS' in des: #covers safeties too
-                pass
-            elif isTouchdown:
+            if isTouchdown:
                 yardsGained = 100 - yardline0to100
             else:
                 if 'RAN OB AT' in des:
-                    hfYardLine = getHowFarYardLine(des, ' RAN OB AT ', 1, dTeam)
+                    hfYardLine = getHowFarYardLine(des, ' RAN OB AT ', 1, oTeam,dTeam)
                 else:
-                    hfYardLine = getHowFarYardLine(des, ' TO ', 1, dTeam)
+                    hfYardLine = getHowFarYardLine(des, ' TO ', 1, oTeam, dTeam)
                 howFar = hfYardLine-yardline0to100
                 yardsGained = max(0,howFar) #official rules of an aborted play, aborter credited with a rush for no gain
             game_stats[gameCount][2+team_key[oTeam]] += yardsGained
@@ -278,7 +281,7 @@ def main():
         # if playType == 'FUMBLES' and gameCount == 155:
         #     print(index, yardlineDirection, yardlineFixed, des, yardsGained)
 
-        elif (' FUMBLES ' in des and (playType == 'RUSH' or playType == 'QB KNEEL' or playType == 'SCRAMBLE')) or (playType == 'PUNT' and ' PUNTS ' not in des and ' BLOCKED ' not in des and ' KICKS ' not in des):
+        elif (' FUMBLES ' in des and (playType == 'RUSH' or playType == 'QB KNEEL' or playType == 'SCRAMBLE')) or (playType == 'PUNT' and ' PUNTS ' not in des and ' BLOCKED ' not in des and ' KICKS ' not in des and 'ABORTED' not in des):
             
             tdes = des.split(' FOR ')
             howFar = getHowFarYards(des, ' FOR ', 1)
@@ -288,13 +291,13 @@ def main():
             yardsGained = howFar
 
             if isFumble and 'TOUCHBACK' not in des:
-                hfYardLine = getHowFarYardLine(des, ' AT ',1, dTeam)
+                hfYardLine = getHowFarYardLine(des, ' AT ',1, oTeam, dTeam)
                 howFar = hfYardLine-yardline0to100
                 yardsGained = min(howFar, yardsGained)
 
             if isAwkPenPlay:
                 # print(index,des)
-                hfYardLine = getHowFarYardLine(des, 'ENFORCED AT ', 1, dTeam)
+                hfYardLine = getHowFarYardLine(des, 'ENFORCED AT ', 1, oTeam, dTeam)
                 yardsGained = hfYardLine-yardline0to100
            
             game_stats[gameCount][team_key[oTeam]] += 1
@@ -306,7 +309,7 @@ def main():
             yardsGained = getHowFarYards(des, ' FOR ', 1)
             if isAwkPenPlay:
                 # print(index,des)
-                hfYardLine = getHowFarYardLine(des, 'ENFORCED AT ', 1, dTeam)
+                hfYardLine = getHowFarYardLine(des, 'ENFORCED AT ', 1, oTeam, dTeam)
                 yardsGained = hfYardLine-yardline0to100
 
             lateralYards = checkLateral(index, des, season)
@@ -316,20 +319,27 @@ def main():
             game_stats[gameCount][2+team_key[oTeam]] += yardsGained
 
         elif ' SACKED' in des and playType != 'TWO-POINT CONVERSION':
-            if index == 17800 and season == 2015: #DUMB sideline warning "FOR" TB, messes this up. PROBLEM
-                yardsGained = getHowFarYards(des, ' FOR ', 2)
-            elif isSafety:
+            if isSafety:
                 yardsGained = 0 - yardline0to100
                 # print(game_id, index, yardlineDirection, yardlineFixed, yardsGained, des, bool(isTOFromFumble))
             elif 'OUT OF BOUNDS' in des or 'ABORTED' in des: #covers safeties too
                 yardsGained = getHowFarYards(des, ' FOR ', 1)
             elif isFumble and not isTOFromFumble:
-                hfYardLine = getHowFarYardLine(des, ' TO ',1, dTeam)
+                if ' TO ' not in des:
+                    print(index, des)
+                    hfYardLine = getHowFarYardLine(des, ' AT ', 2, oTeam, dTeam)
+                    if down == 4:
+                        hfYardLineTest = getHowFarYardLine(des, ' AT ', 1, oTeam, dTeam)
+                        print(index,des,hfYardLine,hfYardLineTest)
+                        hfYardLine = min(hfYardLine,hfYardLineTest)
+
+                else:
+                    hfYardLine = getHowFarYardLine(des, ' TO ', 1, oTeam, dTeam)
                 howFar = hfYardLine-yardline0to100
                 yardsGained = min(0,howFar)
                 # print(game_id, index, yardlineDirection, yardlineFixed, yardsGained, des, bool(isTOFromFumble))
             elif isTOFromFumble:
-                hfYardLine = getHowFarYardLine(des, ' AT ', 2, dTeam)
+                hfYardLine = getHowFarYardLine(des, ' AT ', 2, oTeam, dTeam)
                 howFar = hfYardLine-yardline0to100
                 yardsGained = min(0,howFar)
             else:
@@ -344,8 +354,8 @@ def main():
         elif playType == 'CLOCK STOP':
             game_stats[gameCount][8+team_key[oTeam]] += 1
         
-        elif ' PASS' in des and playType != 'TWO-POINT CONVERSION' and playType != 'EXTRA POINT':
-            tdes = des[des.index(' PASS'):]
+        elif ' PASS ' in des and playType != 'TWO-POINT CONVERSION' and playType != 'EXTRA POINT' and playType != 'FUMBLES':
+            tdes = des[des.index(' PASS '):]
             game_stats[gameCount][8+team_key[oTeam]] += 1
             if ' PASS INCOMPLETE' in tdes or ' INTERCEPTED' in tdes:
                 yardsGained = 0
@@ -355,10 +365,11 @@ def main():
                 # if gameCount == 1 and oTeam == 'CHI':
                 #     print(index, des, yardsGained, game_stats[gameCount][14+team_key[oTeam]])
                 if ' FUMBLES' in tdes and ' TOUCHBACK' not in tdes: #if touchback, clearly yardsGained is less
-                    hfYardLine = getHowFarYardLine(des, ' AT ', 1, dTeam)
+                    hfYardLine = getHowFarYardLine(des, ' AT ', 1, oTeam, dTeam)
                     howFar = hfYardLine-yardline0to100
                     if 'AND RECOVERS' in tdes:
                         yardsGained = howFar
+                        # print(index, des, yardsGained)
                     else:
                         yardsGained = min(yardsGained, howFar)
                 else:
@@ -366,7 +377,7 @@ def main():
                     yardsGained += lateralYards
             if isAwkPenPlay:
                 # print(index,des)
-                hfYardLine = getHowFarYardLine(tdes, 'ENFORCED AT ', 1, dTeam)
+                hfYardLine = getHowFarYardLine(tdes, 'ENFORCED AT ', 1, oTeam,dTeam)
                 yardsGained = hfYardLine-yardline0to100
 
             # if gameCount == 1 and oTeam == 'CHI':
@@ -429,6 +440,11 @@ def main():
         if 'NULLIFIED' in des:
             continue
 
+        if 'SAFETY' in des and 'FOLLOWING THE SAFETY' not in des: #Safety can occur with isNoPlay==1 if Holding in end zone, using the other parts of thisHappened()
+            ##If safety truly occurred, defense team gets 2 points
+            isSafety = 1
+            season_scores[gameCount][team_key[dTeam]] += 2
+
         if isTouchdown==1: #If touchdown truly occurred, offense team gets 6 points
             season_scores[gameCount][team_key[oTeam]] += 6
             # if inRedZone == 1:
@@ -452,11 +468,9 @@ def main():
             # print(index,dTeam,des)
 
     prevGameStats = computePrevGameStats(last_game_id,team1,team2,season_scores,team_key,gameCount)
-    print(prevGameStats)
+    prev_game_stats.append(prevGameStats)
     updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records, teams)
     fixProblems(game_id,season_scores)
-    print(count)
-
 
     checkMissingGames(gameCount, pbp, game_ids)
 
@@ -464,34 +478,54 @@ def main():
         wins = team_records[teams[key]][0]
         losses = team_records[teams[key]][1]
         print(key, '%i-%i' % (wins,losses))
-
-    # for i in range(16):
-    #     print(game_stats[i],season_scores[i])
-
-    # print (prev_game_stats[34], game_stats[34]) 
-    # print (prev_game_stats[41], game_stats[41])
-    # print (prev_game_stats[56], game_stats[56])
-    # print (prev_game_stats[59], game_stats[59])
-    # print (prev_game_stats[61], game_stats[61])
-    # print (prev_game_stats[80], game_stats[80])
-    # print (prev_game_stats[94], game_stats[94])
-    # print (prev_game_stats[103], game_stats[103])
-    # print (prev_game_stats[140], game_stats[140])
-    # print (prev_game_stats[143], game_stats[143])
-    # print (prev_game_stats[155], game_stats[155])
-    # print (prev_game_stats[158], game_stats[158])
-    # print (prev_game_stats[166], game_stats[166])
-    # print (prev_game_stats[172], game_stats[172])
-    # print (prev_game_stats[186], game_stats[186])
-    # print (prev_game_stats[204], game_stats[204])
-    # print (prev_game_stats[209], game_stats[209])
-    # print (prev_game_stats[226], game_stats[226])   
-    # print (prev_game_stats[249], game_stats[249])
     
-  
-    
-   
+    gameStatsIndex = range(0,256)
+    gameStatsCols = ['game_id', 'gameCount', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Team 1 Win', \
+  'Team 2 Win', 'Team 1 Rushing Attempts', 'Team 2 Rushing Attempts', 'Team 1 Rushing Yards', 'Team 2 Rushing Yards',\
+  'Team 1 YPC', 'Team 2 YPC', 'Team 1 Pass Completions', 'Team 2 Pass Completions', 'Team 1 Pass Attempts', \
+  'Team 2 Pass Attempts', 'Team 1 Completion Percentage', 'Team 2 Completion Percentage', 'Team 1 YPA', 'Team 2 YPA',\
+  'Team 1 Passing Yards', 'Team 2 Passing Yards', 'Team 1 Total Yards', 'Team 2 Total Yards', 'Team 1 Times Sacked',\
+  'Team 2 Times Sacked', 'Team 1 Sack Yardage', 'Team 2 Sack Yardage', 'Team 1 3rd Down Conversions', \
+  'Team 2 3rd Down Conversions', 'Team 1 3rd Down Attempts', 'Team 2 3rd Down Attempts',\
+  'Team 1 3rd Down Conversion Rate', 'Team 2 3rd Down Conversion Rate', 'Team 1 Turnovers on Downs',\
+  'Team 2 Turnovers on Downs', 'Team 1 Fumbles Lost', 'Team 2 Fumbles Lost', 'Team 1 Interceptions Thrown',\
+  'Team 2 Interceptions Thrown', 'Team 1 Total Turnovers', 'Team 2 Total Turnovers', 'Team 1 Penalties',\
+  'Team 2 Penalties', 'Team 1 Penalty Yardage', 'Team 2 Penalty Yardage']
 
+  #0: rushes
+    #2: rush yards
+    #4: YPC
+    #6: Pass Completions
+    #8: Pass Attempts
+    #10: Comp %
+    #12: Y/A
+    #14: Passing Yards
+    #16: Total Yards
+    #18: Sacks
+    #20: Sack Yardage
+    #22: 3rd Down Conversion
+    #24: 3rd Down Attempts
+    #26: 3rd Down Conversion Rate
+    #28: Turnover On Downs
+    #30: TO's from fumble
+    #32: Interceptions
+    #34: Total TO's
+    #36: Penalties
+    #38: Penalty Yards
+    ###NOT FINISHED WITH BOTTOM
+    #40: Red Zone Conversion
+    #42: Red Zone Attempts
+    #44: Red Zone Conversion Rate
+
+    
+    numpy_prev_game_stats = np.asarray(prev_game_stats)
+    truePerGameStats = np.concatenate((numpy_prev_game_stats,game_stats),axis=1)
+
+    print(truePerGameStats[:16])
+
+    perGamedf = pd.DataFrame(truePerGameStats, index = gameStatsIndex, columns=gameStatsCols)
+    # perGamedf.to_csv('PerGameStatistics2015.csv')
+    perGamedf.to_csv('PerGameStatistics2016.csv')
 
 '''Function that gets the vaue of each feature at a specific index. All features below are neccessary to compute
 some sort of feature that I will be using in my training data.'''
@@ -542,18 +576,25 @@ def getEssentialPlayByPlayFeatures(index, df):
 
 def getHowFarYards(des, whatToSplitOn, whatPiece):
     tdes = des.split(whatToSplitOn)
-    howFar = tdes[whatPiece].replace('.',' ').replace(',',' ').split()[0]
-    if howFar == 'NO': #No gain
+    howFar = tdes[whatPiece].replace('.',' ').replace(',',' ').split()
+    if howFar[0] == 'NO' and howFar[1] == 'GAIN': #No gain
         howFar = 0
-    howFar = int(howFar)
+    else:
+        howFar = howFar[0]
+    try:
+        howFar = int(howFar)
+    except:
+        return getHowFarYards(des, whatToSplitOn, whatPiece+1)
     return howFar
 
-def getHowFarYardLine(des, whatToSplitOn, whatPiece, dTeam):
+def getHowFarYardLine(des, whatToSplitOn, whatPiece, oTeam, dTeam):
     tdes = des.split(whatToSplitOn)
     hfYardLine = tdes[whatPiece][:6].replace('.',' ').replace(',',' ').split() #at worst BUF 28, for example, six chars
     if hfYardLine[0] == dTeam: #adjusting for opponents yard line
         hfYardLine[1]=100-int(hfYardLine[1]) 
     if hfYardLine[0][:2] != '50': #Midfield, no team name
+        if hfYardLine[0] != oTeam and hfYardLine[0] != dTeam:
+            return getHowFarYardLine(des, whatToSplitOn, whatPiece+1, oTeam, dTeam)
         hfYardLine = hfYardLine[1]
     else:
         hfYardLine = hfYardLine[0]
@@ -665,9 +706,11 @@ def updateTeamRecords(team1,team2,season_scores,team_key,gameCount,team_records,
     if team1Score > team2Score:
         team_records[teams[team1]][0] += 1
         team_records[teams[team2]][1] += 1
-    else:
+    elif team2Score > team1Score:
         team_records[teams[team1]][1] += 1
         team_records[teams[team2]][0] += 1
+    #else:
+        #ties, not accounted for currently
 
 '''Fixing problems with missing data in the csv, hardcoded'''
 def fixProblems(game_id,season_scores):
